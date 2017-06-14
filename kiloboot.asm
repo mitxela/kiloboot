@@ -7,12 +7,17 @@
 ; For ATmega328p and ENC28J60 
 
 ; Wiring: 
-; PB1 INT
+; SPI pins are enforced by hardware and cannot be changed.
 ; PB3 MOSI
 ; PB4 MISO
 ; PB5 SCK
-; CS can be trivially changed here to any unused pin on PORTB
+
+; CS, INT pins can be trivially changed here to any unused pin on PORTB
 #define CS_PIN PB2
+
+; Leave INT_PIN undefined to detect received packets by polling EPKTCNT 
+;#define INT_PIN PB1
+
 
 ; First byte of the MAC address must be an even number
 ; (LSB of MAC0 is a flag for "broadcast address")
@@ -935,8 +940,34 @@ txLoop:
 
 
 readPacket:
-  sbic PINB, PB1
+
+#ifdef INT_PIN
+
+  sbic PINB, INT_PIN
   rjmp readPacket
+
+#else
+
+  ; Set bank 1
+  ldi r16, setBF(ECON1)
+  ldi r17, ECON1_BSEL0
+  rcall enc28j60write
+
+  ldi r16, readCtrlReg(EPKTCNT)
+  ;clr r17 ;probably not needed
+  rcall enc28j60write
+  tst r16
+  breq readPacket
+
+  ; Set bank 0
+  ldi r16, clrBF(ECON1)
+  ldi r17, ECON1_BSEL0
+  rcall enc28j60write
+
+
+#endif
+
+
 
 #ifdef DEBUG
   ldi r16,13
