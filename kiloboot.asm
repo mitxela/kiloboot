@@ -8,10 +8,11 @@
 
 ; Wiring: 
 ; PB1 INT
-; PB2 CS
 ; PB3 MOSI
 ; PB4 MISO
 ; PB5 SCK
+; CS can be trivially changed here to any unused pin on PORTB
+#define CS_PIN PB2
 
 ; First byte of the MAC address must be an even number
 ; (LSB of MAC0 is a flag for "broadcast address")
@@ -414,9 +415,9 @@ dontgiveup:
 
   inc ephReg ; Count number of resets since power on
 
-  ldi r16, (1<<2)|(1<<3)|(1<<5)
+  ldi r16, (1<<CS_PIN)|(1<<PB3)|(1<<PB5)
   out DDRB,r16
-  sbi PORTB,PB2
+  sbi PORTB,CS_PIN
   sbi PORTB,PB1;pullup for int line
 
 ; Init SPI
@@ -887,7 +888,7 @@ startTransmit:
 
   ; copy the packet into the transmit buffer
 
-  cbi PORTB,PB2 ;keep cs low for entire write
+  cbi PORTB,CS_PIN ;keep cs low for entire write
   ldi r16,ENC28J60_WRITE_BUF_MEM
   rcall doSPI
   ; packet control byte = 0
@@ -908,7 +909,7 @@ txLoop:
 
   dec r19
   brne txLoop
-  sbi PORTB,PB2
+  sbi PORTB,CS_PIN
 
 
 
@@ -957,7 +958,7 @@ readPacket:
   rcall enc28j60writeWord
 
 
-  cbi PORTB,PB2 ;keep cs low for entire read
+  cbi PORTB,CS_PIN ;keep cs low for entire read
   ldi r16,ENC28J60_READ_BUF_MEM
   rcall doSPI
 
@@ -1010,7 +1011,7 @@ rcall sendHex
   brne rxLoop
 
 rxDone:
-  sbi PORTB,PB2
+  sbi PORTB,CS_PIN
   
 
 ; Is there any situation where we wouldn't want to swap the mac addresses?
@@ -1081,11 +1082,11 @@ enc28j60writeWord:
 ; r16 = op | (address & 0x1F)
 ; r17 = data
 enc28j60write:
-  cbi PORTB,PB2
+  cbi PORTB,CS_PIN
   rcall doSPI
   mov r16,r17
   rcall doSPI
-  sbi PORTB,PB2
+  sbi PORTB,CS_PIN
 
   ret
 
