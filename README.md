@@ -5,7 +5,7 @@ Main writeup and lots more info here: https://mitxela.com/projects/kiloboot
 
 You will need an ATmega328p and an ENC28J60, wired up as follows:
 
-`PB1 <--> INT`  
+(optional) `PB1 <--> INT`
 `PB2 <--> CS`  
 `PB3 <--> MOSI`  
 `PB4 <--> MISO`  
@@ -42,3 +42,8 @@ I think the simplest way to jump to the bootloader in C would be
 `asm("jmp 0x3e00");`
 
 There's probably a fancy C way of doing it, but this is the only way to be certain of what it's generating.
+
+## Update
+The INT pin is no longer needed in this version. If you uncomment line 19 to define INT_PIN it will conditionally assemble to be identical to the first version. Assembling the INT-free version is 16 bytes longer than the original, so the maximum filename length is now 19 bytes. Some more bytes could be freed up by not configuring the LEDs. 
+
+I also added a define to make it easier to change the pin used for CS, any unused pin on PORTB should work just by changing the define. 
