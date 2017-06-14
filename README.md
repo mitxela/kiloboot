@@ -5,7 +5,7 @@ Main writeup and lots more info here: https://mitxela.com/projects/kiloboot
 
 You will need an ATmega328p and an ENC28J60, wired up as follows:
 
-(optional) `PB1 <--> INT`
+`PB1 <--> INT (optional)`  
 `PB2 <--> CS`  
 `PB3 <--> MOSI`  
 `PB4 <--> MISO`  
