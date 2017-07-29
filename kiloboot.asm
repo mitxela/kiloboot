@@ -423,7 +423,10 @@ dontgiveup:
   ldi r16, (1<<CS_PIN)|(1<<PB3)|(1<<PB5)
   out DDRB,r16
   sbi PORTB,CS_PIN
-  sbi PORTB,PB1;pullup for int line
+
+#ifdef INT_PIN
+  sbi PORTB,INT_PIN
+#endif
 
 ; Init SPI
   ldi r16,(1<<SPE)|(1<<MSTR)
