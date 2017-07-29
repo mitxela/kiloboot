@@ -420,7 +420,7 @@ dontgiveup:
 
   inc ephReg ; Count number of resets since power on
 
-  ldi r16, (1<<CS_PIN)|(1<<PB3)|(1<<PB5)
+  ldi r16, (1<<CS_PIN)|(1<<PB2)|(1<<PB3)|(1<<PB5)
   out DDRB,r16
   sbi PORTB,CS_PIN
 
