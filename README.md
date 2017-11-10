@@ -47,3 +47,6 @@ There's probably a fancy C way of doing it, but this is the only way to be certa
 The INT pin is no longer needed in this version. If you uncomment line 19 to define INT_PIN it will conditionally assemble to be identical to the first version. Assembling the INT-free version is 16 bytes longer than the original, so the maximum filename length is now 19 bytes. Some more bytes could be freed up by not configuring the LEDs. 
 
 I also added a define to make it easier to change the pin used for CS, any unused pin on PORTB should work just by changing the define. 
+
+## Update
+The ability to set the MAC address in the EEPROM settings has been added, and also a flag that signals that the bootloader should be skipped. Since some functionality is compromised in order to implement this, I've committed it onto a separate branch entitled EEPROM-MAC/bootskip, you can select it from the drop-down menu above.
