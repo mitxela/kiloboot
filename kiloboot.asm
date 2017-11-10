@@ -13,7 +13,7 @@
 ; PB5 SCK
 
 ; CS, INT pins can be trivially changed here to any unused pin on PORTB
-#define CS_PIN PB2
+#define CS_PIN PB0
 
 ; Leave INT_PIN undefined to detect received packets by polling EPKTCNT 
 ;#define INT_PIN PB1
@@ -25,8 +25,10 @@
 .equ myMAC1 = 0x02
 .equ myMAC2 = 0x03
 .equ myMAC3 = 0x04
-.equ myMAC4 = 0x05
-.equ myMAC5 = 0x06
+;.equ myMAC4 = 0x05
+;.equ myMAC5 = 0x06
+#define defaultMAC4 0x05
+#define defaultMAC5 0x06
 
 #define FILENAME "program.bin"
 #define MAX_REATTEMPTS 3
@@ -36,7 +38,7 @@
 #define myIP        192,168,1,22
 #define serverIP    192,168,1,23
 #define gatewayIP   192,168,1,254
-#define subnetMask  255,255,255,0
+;#define subnetMask  255,255,255,0 ; This is now hard-coded always
 
 
 ;//////////////////////////////////////////////////////////////
@@ -58,12 +60,13 @@
 .def rGwIP2 = r10
 .def rGwIP3 = r11
 ; Subnet Mask
-.def rSubMask0 = r12
-.def rSubMask1 = r13
-.def rSubMask2 = r14
-.def rSubMask3 = r15
-
-
+;.def rSubMask0 = r12
+;.def rSubMask1 = r13
+;.def rSubMask2 = r14
+;.def rSubMask3 = r15
+.def rMyMAC4 = r12
+.def rMyMAC5 = r13
+.def rBootSkipFlag = r15
 
 ; ENC28J60 definitions
 
@@ -301,7 +304,7 @@ packetBuffer:
 
 .org 0x3e00 ; 1kB from the end
 
-; Mostly redunant reset code. The bootloader may be started by a jump from 
+; Mostly redundant reset code. The bootloader may be started by a jump from 
 ; the main application, so disable interrupts and reset the stack.
 ; Power-on and watchdog reset does this automatically
     cli
@@ -313,25 +316,36 @@ packetBuffer:
 
     rcall loadIPs
 
+    ; rSubMask3 is boot-skip flag: if set to 1, exit bootloader.
+    ldi r16, 0
+    cpse r16,rBootSkipFlag
+    rjmp jmpzero ; saves two bytes
+
+.undef rBootSkipFlag
+
+
 ; is the server on same subnet as me?
 
-    and rMyIP0, rSubMask0
-    and rMyIP1, rSubMask1
-    and rMyIP2, rSubMask2
-    and rMyIP3, rSubMask3
+; Subnet mask is always /24
+; So, no need to AND, just compare first three bytes.
 
-    and rSvIP0, rSubMask0
-    and rSvIP1, rSubMask1
-    and rSvIP2, rSubMask2
-    and rSvIP3, rSubMask3
+;    and rMyIP0, rSubMask0
+;    and rMyIP1, rSubMask1
+;    and rMyIP2, rSubMask2
+;    and rMyIP3, rSubMask3
+
+;    and rSvIP0, rSubMask0
+;    and rSvIP1, rSubMask1
+;    and rSvIP2, rSubMask2
+;    and rSvIP3, rSubMask3
 
     cp  rMyIP0, rSvIP0
     cpc rMyIP1, rSvIP1
     cpc rMyIP2, rSvIP2
-    cpc rMyIP3, rSvIP3
-    in r19, SREG  ; store result of comparison
-    rcall loadIPs ; undo the ANDing
-    out SREG, r19
+;    cpc rMyIP3, rSvIP3
+;    in r19, SREG  ; store result of comparison
+;    rcall loadIPs ; undo the ANDing
+;    out SREG, r19
     brne differentSubnets
 
     ; rGwIP is the IP we send ARP request for
@@ -349,13 +363,10 @@ differentSubnets:
 .def ephReg = r22
 .def attempts = r23
 
-.undef rSubMask0
-.undef rSubMask1
-.undef rSubMask2
-.undef rSubMask3
+
 .def nextPacketL = r14
 .def nextPacketH = r15
-.def zeroReg = r13
+.def zeroReg = r21
 
     
 
@@ -410,6 +421,7 @@ handleWatchdog:
 ;  t: rjmp t ;hang
 
 ; Run application, run!
+jmpzero:
   jmp 0
 
   
@@ -455,18 +467,20 @@ waitStartupTime:
 
   ldi ZL, low(initCode*2)
   ldi ZH, high(initCode*2)
-  ldi r20, (initCodeEnd - initCode) ;length in words
+  ldi r20, (initCodeMac - initCode) ;length in words
+  rcall loadParams
 
-loadParams:
-  lpm r16,Z+
-  lpm r17,Z+
+  ldi r16, ctrlReg(MAADR1)
+  mov r17, rMyMAC4
   rcall enc28j60write
   rcall wait2
-  dec r20
-  brne loadParams
-  
+  ldi r16, ctrlReg(MAADR0)
+  mov r17, rMyMAC5
+  rcall enc28j60write
+  rcall wait2
 
-
+  ldi r20, (initCodeEnd - initCodeMac)
+  rcall loadParams
 
 
 
@@ -484,8 +498,11 @@ arpBroadcastFill:
     ;ldi ZL, LOW()
     ;ldi ZH, HIGH() ; data is immediately after loadparams
     
-    ldi r17, 16
+    ldi r17, 14;16
     rcall loadPMtoSRAM
+    st Y+,rMyMAC4
+    st Y+,rMyMAC5
+
     rcall writeIPtoSram
     adiw Y,6
     ; now load gateway IP
@@ -1128,6 +1145,16 @@ enc28j60write:
 
 
 
+; load init data to enc28j60
+loadParams:
+  lpm r16,Z+
+  lpm r17,Z+
+  rcall enc28j60write
+  rcall wait2
+  dec r20
+  brne loadParams
+  ret
+
 
 
 
@@ -1182,7 +1209,12 @@ writeIPtoSram:
 writeMacToSram:
   ldi ZL, low(myMAC*2)
   ldi ZH, high(myMAC*2)
-  ldi r17, 6
+  ldi r17, 4
+  rcall loadPMtoSRAM
+  st Y+,rMyMAC4
+  st Y+,rMyMAC5
+  ret
+
 
 loadPMtoSRAM:
   lpm r16, Z+
@@ -1292,8 +1324,9 @@ sHHA:
 
 
 hardIPs:
-.db myIP, serverIP, gatewayIP, subnetMask
-
+.db myIP, serverIP, gatewayIP;, subnetMask
+.db defaultMAC4, defaultMAC5
+.db 0,0
 
 initCode:
 
@@ -1331,9 +1364,10 @@ initCode:
 .db ctrlReg(MAADR4) , myMAC1
 .db ctrlReg(MAADR3) , myMAC2
 .db ctrlReg(MAADR2) , myMAC3
-.db ctrlReg(MAADR1) , myMAC4
-.db ctrlReg(MAADR0) , myMAC5
 
+;.db ctrlReg(MAADR1) , myMAC4
+;.db ctrlReg(MAADR0) , myMAC5
+initCodeMac:
 
 
 ;select bank 2
@@ -1367,10 +1401,10 @@ initCode:
 
 
 ;LEDs: flash orange on receive, flash green on transmit
-.db ctrlReg(MIREGADR),PHLCON
+;.db ctrlReg(MIREGADR),PHLCON
 
-.db ctrlReg(MIWRL),0b00100010
-.db ctrlReg(MIWRH),0b00110001
+;.db ctrlReg(MIWRL),0b00100010
+;.db ctrlReg(MIWRH),0b00110001
 
 ; then wait 10.24us until the PHY write completes... can we still do other stuff though?
 
@@ -1394,7 +1428,7 @@ ARPprototype:
 
 .db $08, $06, $00, $01, $08, $00, $06, $04, $00, $01
     myMAC: 
-    .db myMAC0, myMAC1, myMAC2, myMAC3, myMAC4, myMAC5
+    .db myMAC0, myMAC1, myMAC2, myMAC3 ;, myMAC4, myMAC5
     myMACend:
     ;.db myIP0, myIP1, myIP2, myIP3
 ;    six zeros
